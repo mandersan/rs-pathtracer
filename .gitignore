@@ -1,1 +1,6 @@
+# Cargo
+Cargo.lock
+target/**
+
+# MSVC
 **.pdb
