@@ -3,5 +3,5 @@ name = "rs-pathtracer"
 version = "0.1.0"
 authors = ["Mark Anderson <mark@illumedevelopments.co.uk>"]
 
-[dependencies]
-cgmath-rs = "0.16.0"
+[build-dependencies]
+cgmath = "0.16.0"
