@@ -1,3 +1,6 @@
 fn main() {
-    println!("Hello, world!");
+    // :TODO:
+    // 1. PPM output of a basic image.
+    // 2. 
 }
+

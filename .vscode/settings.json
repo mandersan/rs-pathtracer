@@ -1,0 +1,9 @@
+{
+	"files.exclude": {
+		"target/": true,
+		"Cargo.lock": true
+	},
+	"search.exclude": {
+		"target/**": true
+	}
+}
