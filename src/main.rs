@@ -1,8 +1,10 @@
-extern crate lodepng;
+extern crate image;
 extern crate cgmath;
 
+use image::ColorType;
+use image::png::PNGEncoder;
 use std::fs::File;
-use std::io::Write;
+// use std::io::Write;
 use cgmath::*;
 
 struct Camera {
@@ -12,6 +14,15 @@ struct Camera {
     fov: Deg<f32>,
     near: f32,
     far: f32,
+}
+
+fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
+    -> Result<(), std::io::Error>
+{
+    let output = File::create(filename)?;
+    let encoder = PNGEncoder::new(output);
+    encoder.encode(pixels, dimensions.0, dimensions.1, ColorType::RGB(8))?;
+    Ok(())
 }
 
 fn main() {
@@ -47,12 +58,13 @@ fn main() {
     
     let mut image: Vec<u8> = Vec::new();
 
-    let ppm_max_value = 255;
-    let ppm_header = format!("P3\n{} {}\n{}\n", image_width, image_height, ppm_max_value);
-    let mut output_file = File::create("output.ppm")
-        .expect("Unable to open output file");
-    output_file.write_all(ppm_header.as_bytes())
-        .expect("Error writing header");
+    // Test PPM output
+    // let ppm_max_value = 255;
+    // let ppm_header = format!("P3\n{} {}\n{}\n", image_width, image_height, ppm_max_value);
+    // let mut output_file = File::create("output.ppm")
+    //     .expect("Unable to open output file");
+    // output_file.write_all(ppm_header.as_bytes())
+    //     .expect("Error writing header");
 
     for y in 0..image_height {
         for x in 0..image_width {
@@ -63,15 +75,11 @@ fn main() {
             );
 
             let ray_pos = inv_view_projection_matrix.transform_point(ndc);
-
-            // :TODO: This is wrong, direction should be mapped to the perspective frustum
-            let ray_dir = view_projection_matrix.transform_vector(vec3(0., 0., 1.));
+            let ray_dir = (ray_pos - camera.eye).normalize();
 
             //println!("({}, {}): {:?} {:?} {:?}", x, y, ndc, ray_pos, ray_dir);
 
-
-            let unit_direction = ray_dir.normalize();
-            let t = 0.5 * (unit_direction.y + 1.0);
+            let t = 0.5 * (ray_dir.y + 1.0);
             let colour = ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0));
 
             //let Vector3 { x: r, y: g, z: b} = colour;
@@ -79,9 +87,11 @@ fn main() {
             let r = colour.x * 255.;
             let g = colour.y * 255.;
             let b = colour.z * 255.;
-            let element = format!("{} {} {}\n", r, g, b);
-            output_file.write_all(element.as_bytes())
-                .expect("Unable to write element");
+
+            // Test PPM output
+            // let element = format!("{} {} {}\n", r, g, b);
+            // output_file.write_all(element.as_bytes())
+            //     .expect("Unable to write element");
 
             image.push(r as u8);
             image.push(g as u8);
@@ -89,7 +99,6 @@ fn main() {
         }
     }
 
-    lodepng::encode_file("output.png", image.as_slice(), image_width, image_height, lodepng::ColorType::RGB, 8)
-        .expect("Unable to save PNG");
+    write_png_rgb8("output.png", image.as_slice(), (image_width, image_height)).expect("Unable to save PNG");
 }
 

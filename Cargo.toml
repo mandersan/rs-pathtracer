@@ -5,4 +5,4 @@ authors = ["Mark Anderson <mark@illumedevelopments.co.uk>"]
 
 [dependencies]
 cgmath = "0.16.0"
-lodepng = "2.1.2"
+image = "0.18.0"
