@@ -20,13 +20,13 @@ fn main() {
     // - Command line args parsing (output to file/window).
     // - 
 
-    let image_width = 4;//320;
-    let image_height = 4;//256;
+    let image_width = 320;
+    let image_height = 200;
     let image_aspect = image_width as f32 / image_height as f32;
 
     let camera = Camera {
         eye: Point3::new(0., 0., 0.),
-        target: Point3::new(0., 0., -1.),
+        target: Point3::new(0., 0., 1.),
         up: vec3(0., 1., 0.),
         fov: Deg(60.0),
         near: 0.01,
@@ -39,15 +39,8 @@ fn main() {
     let view_projection_matrix = projection_matrix * view_matrix;
     let inv_view_projection_matrix = view_projection_matrix.inverse_transform().unwrap();
 
-    /*
-        In: (screenX, screenY)
-        |
-        screen -> NDC
-        NDC -> view
-        view -> projection
-        |
-        Out: (worldX, worldY, worldZ)
-    */
+    //println!("view: {:?}\nproj: {:?}\nviewProj: {:?}\ninvViewProj: {:?}", view_matrix, projection_matrix, view_projection_matrix, inv_view_projection_matrix);
+
 
     // :TODO: Get simple sky & sphere intersection working.
 
@@ -70,15 +63,22 @@ fn main() {
             );
 
             let ray_pos = inv_view_projection_matrix.transform_point(ndc);
-            //let ray_pos = inv_view_projection_matrix * ndc;
-            let ray_dir = inv_view_projection_matrix.transform_vector(vec3(0., 0., -1.));
 
-            println!("({}, {}): {:?} {:?} {:?}", x, y, ndc, ray_pos, ray_dir);
+            // :TODO: This is wrong, direction should be mapped to the perspective frustum
+            let ray_dir = view_projection_matrix.transform_vector(vec3(0., 0., 1.));
+
+            //println!("({}, {}): {:?} {:?} {:?}", x, y, ndc, ray_pos, ray_dir);
 
 
-            let r = (x % 16) * 16;
-            let g = 0;
-            let b = (y % 16) * 16;
+            let unit_direction = ray_dir.normalize();
+            let t = 0.5 * (unit_direction.y + 1.0);
+            let colour = ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0));
+
+            //let Vector3 { x: r, y: g, z: b} = colour;
+
+            let r = colour.x * 255.;
+            let g = colour.y * 255.;
+            let b = colour.z * 255.;
             let element = format!("{} {} {}\n", r, g, b);
             output_file.write_all(element.as_bytes())
                 .expect("Unable to write element");
