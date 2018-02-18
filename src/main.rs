@@ -112,7 +112,7 @@ fn main() {
         for x in 0..image_width {
             let ndc = Point3::new(
                 (x as f32 / ((image_width - 1) as f32 / 2.)) - 1.,
-                (y as f32 / ((image_height - 1) as f32 / 2.)) - 1.,
+                (-(y as f32) / ((image_height - 1) as f32 / 2.)) + 1.,
                 0.
             );
             let ray_pos = inv_view_projection_matrix.transform_point(ndc);
