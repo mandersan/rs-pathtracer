@@ -1,11 +1,22 @@
-extern crate image;
-extern crate cgmath;
+/*
+:TODO:
+- Multiple shapes.
+- Shading model.
+- Lights.
+- Efficient scene organisation.
+- Etc.
+*/
 
+extern crate cgmath;
+extern crate image;
+extern crate rand;
+
+use cgmath::*;
 use image::ColorType;
 use image::png::PNGEncoder;
+use rand::{random, Rand};
 use std::f32;
 use std::fs::File;
-use cgmath::*;
 
 struct Camera {
     eye: Point3<f32>,
@@ -88,6 +99,7 @@ fn main() {
     let image_width = 320;
     let image_height = 200;
     let image_aspect = image_width as f32 / image_height as f32;
+    let num_samples = 64;
 
     let camera = Camera {
         eye: Point3::new(0., 0., 2.),
@@ -110,31 +122,37 @@ fn main() {
 
     for y in 0..image_height {
         for x in 0..image_width {
-            let ndc = Point3::new(
-                (x as f32 / ((image_width - 1) as f32 / 2.)) - 1.,
-                (-(y as f32) / ((image_height - 1) as f32 / 2.)) + 1.,
-                0.
-            );
-            let ray_pos = inv_view_projection_matrix.transform_point(ndc);
-            let ray_dir = (ray_pos - camera.eye).normalize();
-            //println!("({}, {}): {:?} {:?} {:?}", x, y, ndc, ray_pos, ray_dir);
+            let mut colour = Vector3::zero();
+            for s in 0..num_samples {
+                let sx = (x as f32) + random::<f32>();
+                let sy = (y as f32) + random::<f32>();
 
-            let ray = Ray {
-                origin: ray_pos,
-                direction: ray_dir
-            };
+                 let ndc = Point3::new(
+                    (sx as f32 / (image_width as f32 / 2.)) - 1.,
+                    (-(sy as f32) / (image_height as f32 / 2.)) + 1.,
+                    0.
+                );
+                let ray_pos = inv_view_projection_matrix.transform_point(ndc);
+                let ray_dir = (ray_pos - camera.eye).normalize();
 
-            let hit = intersect_test_sphere(&test_sphere, &ray, &Interval { min: 0.0, max: f32::MAX });
-            let colour = match hit {
-                None => {
-                    let t = 0.5 * (ray_dir.y + 1.0);
-                    ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
-                },
-                Some(hit) => {
-                    // :NOTE: Just showing normals
-                    0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
-                }
-            };
+                let ray = Ray {
+                    origin: ray_pos,
+                    direction: ray_dir
+                };
+
+                let hit = intersect_test_sphere(&test_sphere, &ray, &Interval { min: 0.0, max: f32::MAX });
+                colour += match hit {
+                    None => {
+                        let t = 0.5 * (ray_dir.y + 1.0);
+                        ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
+                    },
+                    Some(hit) => {
+                        // :NOTE: Just showing normals
+                        0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
+                    }
+                };
+            }
+            colour = colour / (num_samples as f32);
 
             //let Vector3 { x: r, y: g, z: b} = colour;
 
