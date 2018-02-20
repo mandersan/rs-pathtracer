@@ -1,10 +1,12 @@
 /*
 :TODO:
-- Multiple shapes.
+- Multiple shapes:
+    - "Hitable" trait, implement this trait for various shape types.
 - Shading model.
 - Lights.
 - Efficient scene organisation.
-- Etc.
+- Multi-threaded rendering.
+- Spectral path tracing (single scalar per ray? Randomly pick a wavelength per bounce?)
 */
 
 extern crate cgmath;
@@ -14,7 +16,7 @@ extern crate rand;
 use cgmath::*;
 use image::ColorType;
 use image::png::PNGEncoder;
-use rand::{random, Rand};
+use rand::{random};
 use std::f32;
 use std::fs::File;
 
@@ -57,6 +59,17 @@ struct Hit {
     normal: Vector3<f32>
 }
 
+fn random_in_unit_sphere() -> Vector3<f32>
+{
+    // :TODD: Check that the initial random vector has values in the range 0..1
+    loop {
+        let p = (2.0 * random::<Vector3<f32>>()) - vec3(1., 1., 1.);
+        if p.magnitude2() < 1. {
+            return p;
+        }
+    }
+}
+
 fn intersect_test_sphere(sphere: &Sphere, ray: &Ray, interval: &Interval) -> Option<Hit>
 {
     let sphere_to_ray_origin = ray.origin - sphere.origin;
@@ -88,6 +101,24 @@ fn intersect_test_sphere(sphere: &Sphere, ray: &Ray, interval: &Interval) -> Opt
         }
     }
     None    
+}
+
+fn trace(sphere: &Sphere, ray: &Ray) -> Vector3<f32> {
+    let hit = intersect_test_sphere(sphere, ray, &Interval { min: 0.001, max: f32::MAX });
+    let colour = match hit {
+        None => {
+            let t = 0.5 * (ray.direction.y + 1.0);
+            ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
+        },
+        Some(hit) => {
+            let target = hit.location + hit.normal + random_in_unit_sphere();
+            let new_ray = Ray { origin: hit.location, direction: target - hit.location };
+            0.5 * trace(sphere, &new_ray)
+            // :NOTE: Normals
+            //0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
+        }
+    };
+    colour
 }
 
 fn main() {
@@ -140,22 +171,26 @@ fn main() {
                     direction: ray_dir
                 };
 
-                let hit = intersect_test_sphere(&test_sphere, &ray, &Interval { min: 0.0, max: f32::MAX });
-                colour += match hit {
-                    None => {
-                        let t = 0.5 * (ray_dir.y + 1.0);
-                        ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
-                    },
-                    Some(hit) => {
-                        // :NOTE: Just showing normals
-                        0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
-                    }
-                };
+                colour += trace(&test_sphere, &ray);
+                // let hit = intersect_test_sphere(&test_sphere, &ray, &Interval { min: 0.0, max: f32::MAX });
+                // colour += match hit {
+                //     None => {
+                //         let t = 0.5 * (ray.direction.y + 1.0);
+                //         ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
+                //     },
+                //     Some(hit) => {
+                //         // :NOTE: Just showing normals
+                //         0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
+                //     }
+                // };
             }
             colour = colour / (num_samples as f32);
 
             //let Vector3 { x: r, y: g, z: b} = colour;
 
+            // Gamma correct
+            let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt());
+      
             let r = colour.x * 255.;
             let g = colour.y * 255.;
             let b = colour.z * 255.;
