@@ -57,15 +57,15 @@ struct Hit<'a> {
     distance: f32,
     location: Point3<f32>,
     normal: Vector3<f32>,
-    material: &'a Scatterable,
+    material: &'a (Scatterable + 'a),
 }
 
-trait Hitable<'a> {
-    fn hit(&'a self, ray: &Ray, interval: &Interval) -> Option<Hit>;
+trait Hitable {
+    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>;
 }
 
-impl<'a> Hitable<'a> for Sphere {
-    fn hit(&'a self, ray: &Ray, interval: &Interval) -> Option<Hit> {
+impl Hitable for Sphere {
+    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit> {
         let sphere_to_ray_origin = ray.origin - self.origin;
         let a = dot(ray.direction, ray.direction);
         let b = dot(sphere_to_ray_origin, ray.direction);
@@ -149,7 +149,7 @@ fn random_in_unit_sphere() -> Vector3<f32> {
     }
 }
 
-fn hit<'a>(shapes: &'a Vec<Box<Hitable<'a>>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
+fn hit<'a>(shapes: &'a Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
     let mut hit_result: Option<Hit> = None;
     let mut closest = interval.max;
     for shape in shapes
@@ -162,7 +162,7 @@ fn hit<'a>(shapes: &'a Vec<Box<Hitable<'a>>>, ray: &Ray, interval: &Interval) ->
     return hit_result;
 }
 
-fn trace<'a>(shapes: &'a Vec<Box<Hitable<'a>>>, ray: &Ray, depth: u32) -> Vector3<f32> {
+fn trace(shapes: &Vec<Box<Hitable>>, ray: &Ray, depth: u32) -> Vector3<f32> {
     let hit = hit(shapes, ray, &Interval { min: 0.001, max: f32::MAX });
     let colour = match hit {
         None => {
