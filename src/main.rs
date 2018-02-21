@@ -1,7 +1,6 @@
 /*
 :TODO:
-- Multiple shapes:
-    - "Hitable" trait, implement this trait for various shape types.
+- Multiple shapes - better/more efficient storage/organisation.
 - Shading model.
 - Lights.
 - Efficient scene organisation.
@@ -59,6 +58,45 @@ struct Hit {
     normal: Vector3<f32>
 }
 
+trait Hitable {
+    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>;
+}
+
+impl Hitable for Sphere {
+    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>
+    {
+        let sphere_to_ray_origin = ray.origin - self.origin;
+        let a = dot(ray.direction, ray.direction);
+        let b = dot(sphere_to_ray_origin, ray.direction);
+        let c = dot(sphere_to_ray_origin, sphere_to_ray_origin) - (self.radius * self.radius);
+        let discriminant = b * b - a * c;
+
+        //println!("{:?} {:?} {:?} {:?} {} {} {} {}", ray.origin, ray.direction, origin, sphere_to_ray_origin, a, b, c, discriminant);
+
+        if discriminant > 0. {
+            let tmp = (-b - (b * b - a * c).sqrt()) / a;
+            if tmp < interval.max && tmp > interval.min {
+                let hit_location = ray.origin + (tmp * ray.direction);
+                return Some(Hit {
+                    distance: tmp,
+                    location: hit_location,
+                    normal: (hit_location - self.origin) / self.radius
+                });
+            }
+            let tmp = (-b + (b * b - a * c).sqrt()) / a;
+            if tmp < interval.max && tmp > interval.min {
+                let hit_location = ray.origin + (tmp * ray.direction);
+                return Some(Hit {
+                    distance: tmp,
+                    location: hit_location,
+                    normal: (hit_location - self.origin) / self.radius
+                });
+            }
+        }
+        None
+    }
+}
+
 fn random_in_unit_sphere() -> Vector3<f32>
 {
     // :TODD: Check that the initial random vector has values in the range 0..1
@@ -70,41 +108,22 @@ fn random_in_unit_sphere() -> Vector3<f32>
     }
 }
 
-fn intersect_test_sphere(sphere: &Sphere, ray: &Ray, interval: &Interval) -> Option<Hit>
+fn hit(shapes: &Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit>
 {
-    let sphere_to_ray_origin = ray.origin - sphere.origin;
-    let a = dot(ray.direction, ray.direction);
-    let b = dot(sphere_to_ray_origin, ray.direction);
-    let c = dot(sphere_to_ray_origin, sphere_to_ray_origin) - (sphere.radius * sphere.radius);
-    let discriminant = b * b - a * c;
-
-    //println!("{:?} {:?} {:?} {:?} {} {} {} {}", ray.origin, ray.direction, sphere.origin, sphere_to_ray_origin, a, b, c, discriminant);
-
-    if discriminant > 0. {
-        let tmp = (-b - (b * b - a * c).sqrt()) / a;
-        if tmp < interval.max && tmp > interval.min {
-            let hit_location = ray.origin + (tmp * ray.direction);
-            return Some(Hit {
-                distance: tmp,
-                location: hit_location,
-                normal: (hit_location - sphere.origin) / sphere.radius
-            });
-        }
-        let tmp = (-b + (b * b - a * c).sqrt()) / a;
-        if tmp < interval.max && tmp > interval.min {
-            let hit_location = ray.origin + (tmp * ray.direction);
-            return Some(Hit {
-                distance: tmp,
-                location: hit_location,
-                normal: (hit_location - sphere.origin) / sphere.radius
-            });
+    let mut hit_result: Option<Hit> = None;
+    let mut closest = interval.max;
+    for shape in shapes
+    {
+        if let Some(hit) = shape.hit(ray, &Interval { min: interval.min, max: closest }) {
+            closest = hit.distance;
+            hit_result = Some(hit);
         }
     }
-    None    
+    return hit_result;
 }
 
-fn trace(sphere: &Sphere, ray: &Ray) -> Vector3<f32> {
-    let hit = intersect_test_sphere(sphere, ray, &Interval { min: 0.001, max: f32::MAX });
+fn trace(shapes: &Vec<Box<Hitable>>, ray: &Ray) -> Vector3<f32> {
+    let hit = hit(shapes, ray, &Interval { min: 0.001, max: f32::MAX });
     let colour = match hit {
         None => {
             let t = 0.5 * (ray.direction.y + 1.0);
@@ -113,7 +132,7 @@ fn trace(sphere: &Sphere, ray: &Ray) -> Vector3<f32> {
         Some(hit) => {
             let target = hit.location + hit.normal + random_in_unit_sphere();
             let new_ray = Ray { origin: hit.location, direction: target - hit.location };
-            0.5 * trace(sphere, &new_ray)
+            0.5 * trace(shapes, &new_ray)
             // :NOTE: Normals
             //0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
         }
@@ -133,8 +152,8 @@ fn main() {
     let num_samples = 64;
 
     let camera = Camera {
-        eye: Point3::new(0., 0., 2.),
-        target: Point3::new(0., 0., 1.),
+        eye: Point3::new(0., 0., 0.75),
+        target: Point3::new(0., 0., -1.),
         up: vec3(0., 1., 0.),
         fov: Deg(60.0),
         near: 0.01,
@@ -147,7 +166,10 @@ fn main() {
     let inv_view_projection_matrix = view_projection_matrix.inverse_transform().unwrap();
     //println!("view: {:?}\nproj: {:?}\nviewProj: {:?}\ninvViewProj: {:?}", view_matrix, projection_matrix, view_projection_matrix, inv_view_projection_matrix);
 
-    let test_sphere = Sphere { origin: Point3::new(0., 0., 1.), radius: 0.3 };
+    // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
+    let mut shapes: Vec<Box<Hitable>> = Vec::new();
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5 }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100. }));
     
     let mut image: Vec<u8> = Vec::new();
 
@@ -171,18 +193,7 @@ fn main() {
                     direction: ray_dir
                 };
 
-                colour += trace(&test_sphere, &ray);
-                // let hit = intersect_test_sphere(&test_sphere, &ray, &Interval { min: 0.0, max: f32::MAX });
-                // colour += match hit {
-                //     None => {
-                //         let t = 0.5 * (ray.direction.y + 1.0);
-                //         ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
-                //     },
-                //     Some(hit) => {
-                //         // :NOTE: Just showing normals
-                //         0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
-                //     }
-                // };
+                colour += trace(&shapes, &ray);
             }
             colour = colour / (num_samples as f32);
 
