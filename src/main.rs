@@ -39,7 +39,8 @@ fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
 
 struct Sphere {
     origin: Point3<f32>,
-    radius: f32
+    radius: f32,
+    material: Box<Scatterable>,
 }
 
 struct Ray {
@@ -52,19 +53,19 @@ struct Interval {
     max: f32
 }
 
-struct Hit {
+struct Hit<'a> {
     distance: f32,
     location: Point3<f32>,
-    normal: Vector3<f32>
+    normal: Vector3<f32>,
+    material: &'a Scatterable,
 }
 
-trait Hitable {
-    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>;
+trait Hitable<'a> {
+    fn hit(&'a self, ray: &Ray, interval: &Interval) -> Option<Hit>;
 }
 
-impl Hitable for Sphere {
-    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>
-    {
+impl<'a> Hitable<'a> for Sphere {
+    fn hit(&'a self, ray: &Ray, interval: &Interval) -> Option<Hit> {
         let sphere_to_ray_origin = ray.origin - self.origin;
         let a = dot(ray.direction, ray.direction);
         let b = dot(sphere_to_ray_origin, ray.direction);
@@ -80,7 +81,8 @@ impl Hitable for Sphere {
                 return Some(Hit {
                     distance: tmp,
                     location: hit_location,
-                    normal: (hit_location - self.origin) / self.radius
+                    normal: (hit_location - self.origin) / self.radius,
+                    material: &*self.material,
                 });
             }
             let tmp = (-b + (b * b - a * c).sqrt()) / a;
@@ -89,7 +91,8 @@ impl Hitable for Sphere {
                 return Some(Hit {
                     distance: tmp,
                     location: hit_location,
-                    normal: (hit_location - self.origin) / self.radius
+                    normal: (hit_location - self.origin) / self.radius,
+                    material: &*self.material,
                 });
             }
         }
@@ -97,8 +100,46 @@ impl Hitable for Sphere {
     }
 }
 
-fn random_in_unit_sphere() -> Vector3<f32>
-{
+struct Scatter {
+    ray: Ray,
+    attenuation: Vector3<f32>,
+}
+
+trait Scatterable {
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter>;
+}
+
+struct Lambertian {
+    albedo: Vector3<f32>,
+}
+
+impl Scatterable for Lambertian {
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+        let target = hit.location + hit.normal + random_in_unit_sphere();
+        let scattered_ray = Ray { origin: hit.location, direction: target - hit.location };
+        let attenuation = self.albedo;
+        Some(Scatter { ray: scattered_ray, attenuation })
+    }
+}
+
+struct Metal {
+    albedo: Vector3<f32>,
+}
+
+impl Scatterable for Metal {
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+        let reflected = reflect(ray.direction.normalize(), hit.normal);
+        let scattered_ray = Ray{ origin: hit.location, direction: reflected };
+        let attenuation = self.albedo;
+        Some(Scatter { ray: scattered_ray, attenuation })
+    }
+}
+
+fn reflect(v: Vector3<f32>, n: Vector3<f32>) -> Vector3<f32> {
+    v - 2. * dot(v, n) * n
+}
+
+fn random_in_unit_sphere() -> Vector3<f32> {
     // :TODD: Check that the initial random vector has values in the range 0..1
     loop {
         let p = (2.0 * random::<Vector3<f32>>()) - vec3(1., 1., 1.);
@@ -108,8 +149,7 @@ fn random_in_unit_sphere() -> Vector3<f32>
     }
 }
 
-fn hit(shapes: &Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit>
-{
+fn hit<'a>(shapes: &'a Vec<Box<Hitable<'a>>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
     let mut hit_result: Option<Hit> = None;
     let mut closest = interval.max;
     for shape in shapes
@@ -122,7 +162,7 @@ fn hit(shapes: &Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit
     return hit_result;
 }
 
-fn trace(shapes: &Vec<Box<Hitable>>, ray: &Ray) -> Vector3<f32> {
+fn trace<'a>(shapes: &'a Vec<Box<Hitable<'a>>>, ray: &Ray, depth: u32) -> Vector3<f32> {
     let hit = hit(shapes, ray, &Interval { min: 0.001, max: f32::MAX });
     let colour = match hit {
         None => {
@@ -130,11 +170,16 @@ fn trace(shapes: &Vec<Box<Hitable>>, ray: &Ray) -> Vector3<f32> {
             ((1.0 - t) * vec3(1., 1., 1.)) + (t * vec3(0.5, 0.7, 1.0))
         },
         Some(hit) => {
-            let target = hit.location + hit.normal + random_in_unit_sphere();
-            let new_ray = Ray { origin: hit.location, direction: target - hit.location };
-            0.5 * trace(shapes, &new_ray)
-            // :NOTE: Normals
-            //0.5 * vec3(hit.normal.x + 1., hit.normal.y + 1., hit.normal.z + 1.)
+            if depth < 50 {
+                let scatter_result = hit.material.scatter(ray, &hit);
+                let colour = match scatter_result {
+                    None => vec3(0., 0., 0.),
+                    Some(scatter_result) => scatter_result.attenuation.mul_element_wise(trace(shapes, &scatter_result.ray, depth + 1))
+                };
+                colour
+            } else {
+                vec3(0., 0., 0.)
+            }
         }
     };
     colour
@@ -168,9 +213,11 @@ fn main() {
 
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
     let mut shapes: Vec<Box<Hitable>> = Vec::new();
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5 }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100. }));
-    
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.8, 0.3, 0.3) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100., material: Box::new(Lambertian { albedo: vec3(0.8, 0.8, 0.0) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.8, 0.8) }) }));
+        
     let mut image: Vec<u8> = Vec::new();
 
     for y in 0..image_height {
@@ -193,7 +240,7 @@ fn main() {
                     direction: ray_dir
                 };
 
-                colour += trace(&shapes, &ray);
+                colour += trace(&shapes, &ray, 0);
             }
             colour = colour / (num_samples as f32);
 
