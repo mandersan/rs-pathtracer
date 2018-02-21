@@ -7,3 +7,6 @@ authors = ["Mark Anderson <mark@illumedevelopments.co.uk>"]
 cgmath = "0.16.0"
 image = "0.18.0"
 rand = "0.4"
+
+[profile.release]
+debug-assertions = true

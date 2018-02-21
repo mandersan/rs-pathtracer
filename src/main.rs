@@ -124,19 +124,80 @@ impl Scatterable for Lambertian {
 
 struct Metal {
     albedo: Vector3<f32>,
+    fuzziness: f32,
 }
 
 impl Scatterable for Metal {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
         let reflected = reflect(ray.direction.normalize(), hit.normal);
-        let scattered_ray = Ray{ origin: hit.location, direction: reflected };
+        let scattered_ray = Ray{ origin: hit.location, direction: reflected + self.fuzziness * random_in_unit_sphere() };
         let attenuation = self.albedo;
-        Some(Scatter { ray: scattered_ray, attenuation })
+        if dot(scattered_ray.direction, hit.normal) > 0.0 {
+            Some(Scatter { ray: scattered_ray, attenuation })
+        } else {
+            None
+        }        
+    }
+}
+
+struct Dialectric {
+    refractive_index: f32,
+}
+
+impl Scatterable for Dialectric {
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+        let reflected = reflect(ray.direction, hit.normal);
+        let attenuation = vec3(1., 1., 1.);
+
+        let outward_normal;
+        let ni_over_nt;
+        let cosine;
+        if dot(ray.direction, hit.normal) > 0. {
+            outward_normal = -hit.normal;
+            ni_over_nt = self.refractive_index;
+            cosine = self.refractive_index * dot(ray.direction, hit.normal) / ray.direction.magnitude();
+        } else {
+            outward_normal = hit.normal;
+            ni_over_nt = 1. / self.refractive_index;
+            cosine = -dot(ray.direction, hit.normal) / ray.direction.magnitude();
+        }
+
+        let refracted = refract(ray.direction, outward_normal, ni_over_nt);
+        let reflect_probability = match refracted {
+            None => 1.0,
+            Some(_refracted) => schlick(cosine, self.refractive_index),
+        };
+
+        let scattered = if random::<f32>() < reflect_probability {
+            Scatter { ray: Ray { origin: hit.location, direction: reflected }, attenuation }
+        } else {
+            Scatter { ray: Ray { origin: hit.location, direction: refracted.unwrap() }, attenuation }
+        };
+
+        Some(scattered)
     }
 }
 
 fn reflect(v: Vector3<f32>, n: Vector3<f32>) -> Vector3<f32> {
     v - 2. * dot(v, n) * n
+}
+
+fn refract(v: Vector3<f32>, n: Vector3<f32>, ni_over_nt: f32) -> Option<Vector3<f32>> {
+    let unit_v = v.normalize();
+    let dt = dot(unit_v, n);
+    let discriminant = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt);
+    if discriminant > 0. {
+        let refracted = ni_over_nt * (unit_v - n * dt) - n *discriminant.sqrt();
+        Some(refracted)
+    } else {
+        None
+    }
+}
+
+fn schlick(cosine: f32, refractive_index: f32) -> f32 {
+    let r0 = (1.0 - refractive_index) / (1.0 + refractive_index);
+    let r0 = r0 * r0;
+    r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
 }
 
 fn random_in_unit_sphere() -> Vector3<f32> {
@@ -191,10 +252,10 @@ fn main() {
     // - Command line args parsing (output to file/window).
     // - 
 
-    let image_width = 320;
-    let image_height = 200;
+    let image_width = 640;
+    let image_height = 400;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 64;
+    let num_samples = 1000;
 
     let camera = Camera {
         eye: Point3::new(0., 0., 0.75),
@@ -213,10 +274,11 @@ fn main() {
 
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
     let mut shapes: Vec<Box<Hitable>> = Vec::new();
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.8, 0.3, 0.3) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100., material: Box::new(Lambertian { albedo: vec3(0.8, 0.8, 0.0) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.8, 0.8) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
+    //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
         
     let mut image: Vec<u8> = Vec::new();
 
@@ -244,14 +306,9 @@ fn main() {
             }
             colour = colour / (num_samples as f32);
 
-            //let Vector3 { x: r, y: g, z: b} = colour;
-
-            // Gamma correct
-            let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt());
-      
-            let r = colour.x * 255.;
-            let g = colour.y * 255.;
-            let b = colour.z * 255.;
+            // Gamma correct & convert to 8bpp
+            let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt()) * 255.;
+            let Vector3 { x: r, y: g, z: b} = colour;
 
             image.push(r as u8);
             image.push(g as u8);
