@@ -19,6 +19,14 @@ use rand::{random};
 use std::f32;
 use std::fs::File;
 
+pub mod materials;
+pub mod shapes;
+pub mod util;
+
+use materials::{dialectric, lambertian, metal};
+use shapes::{sphere};
+use util::{maths, random};
+
 struct Camera {
     eye: Point3<f32>,
     target: Point3<f32>,
@@ -39,12 +47,6 @@ fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
     Ok(())
 }
 
-struct Sphere {
-    origin: Point3<f32>,
-    radius: f32,
-    material: Box<Scatterable>,
-}
-
 struct Ray {
     origin: Point3<f32>,
     direction: Vector3<f32>
@@ -59,48 +61,13 @@ struct Hit<'a> {
     distance: f32,
     location: Point3<f32>,
     normal: Vector3<f32>,
-    material: &'a (Scatterable + 'a),
+    material: &'a (Scatterable + 'a), // :TODO: Better undestand lifetime use here
 }
 
 trait Hitable {
     fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>;
 }
 
-impl Hitable for Sphere {
-    fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit> {
-        let sphere_to_ray_origin = ray.origin - self.origin;
-        let a = dot(ray.direction, ray.direction);
-        let b = dot(sphere_to_ray_origin, ray.direction);
-        let c = dot(sphere_to_ray_origin, sphere_to_ray_origin) - (self.radius * self.radius);
-        let discriminant = b * b - a * c;
-
-        //println!("{:?} {:?} {:?} {:?} {} {} {} {}", ray.origin, ray.direction, origin, sphere_to_ray_origin, a, b, c, discriminant);
-
-        if discriminant > 0. {
-            let tmp = (-b - (b * b - a * c).sqrt()) / a;
-            if tmp < interval.max && tmp > interval.min {
-                let hit_location = ray.origin + (tmp * ray.direction);
-                return Some(Hit {
-                    distance: tmp,
-                    location: hit_location,
-                    normal: (hit_location - self.origin) / self.radius,
-                    material: &*self.material,
-                });
-            }
-            let tmp = (-b + (b * b - a * c).sqrt()) / a;
-            if tmp < interval.max && tmp > interval.min {
-                let hit_location = ray.origin + (tmp * ray.direction);
-                return Some(Hit {
-                    distance: tmp,
-                    location: hit_location,
-                    normal: (hit_location - self.origin) / self.radius,
-                    material: &*self.material,
-                });
-            }
-        }
-        None
-    }
-}
 
 struct Scatter {
     ray: Ray,
@@ -109,117 +76,6 @@ struct Scatter {
 
 trait Scatterable {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter>;
-}
-
-struct Lambertian {
-    albedo: Vector3<f32>,
-}
-
-impl Scatterable for Lambertian {
-    fn scatter(&self, _ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let target = hit.location + hit.normal + random_in_unit_sphere();
-        let scattered_ray = Ray { origin: hit.location, direction: target - hit.location };
-        let attenuation = self.albedo;
-        Some(Scatter { ray: scattered_ray, attenuation })
-    }
-}
-
-struct Metal {
-    albedo: Vector3<f32>,
-    fuzziness: f32,
-}
-
-impl Scatterable for Metal {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let reflected = reflect(ray.direction.normalize(), hit.normal);
-        let scattered_ray = Ray{ origin: hit.location, direction: reflected + self.fuzziness * random_in_unit_sphere() };
-        let attenuation = self.albedo;
-        if dot(scattered_ray.direction, hit.normal) > 0.0 {
-            Some(Scatter { ray: scattered_ray, attenuation })
-        } else {
-            None
-        }        
-    }
-}
-
-struct Dialectric {
-    refractive_index: f32,
-}
-
-impl Scatterable for Dialectric {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let reflected = reflect(ray.direction, hit.normal);
-        let attenuation = vec3(1., 1., 1.);
-
-        let outward_normal;
-        let ni_over_nt;
-        let cosine;
-        if dot(ray.direction, hit.normal) > 0. {
-            outward_normal = -hit.normal;
-            ni_over_nt = self.refractive_index;
-            cosine = self.refractive_index * dot(ray.direction, hit.normal) / ray.direction.magnitude();
-        } else {
-            outward_normal = hit.normal;
-            // :TODO: This assumes air (idx=1) to medium, will need to ensure correct index is used if light is crossing boundary between two mediums
-            ni_over_nt = 1. / self.refractive_index;
-            cosine = -dot(ray.direction, hit.normal) / ray.direction.magnitude();
-        }
-
-        let refracted = refract(ray.direction, outward_normal, ni_over_nt);
-        let reflect_probability = match refracted {
-            None => 1.0,
-            Some(_refracted) => schlick(cosine, self.refractive_index),
-        };
-
-        let scattered = if random::<f32>() < reflect_probability {
-            Scatter { ray: Ray { origin: hit.location, direction: reflected }, attenuation }
-        } else {
-            Scatter { ray: Ray { origin: hit.location, direction: refracted.unwrap() }, attenuation }
-        };
-
-        Some(scattered)
-    }
-}
-
-fn reflect(v: Vector3<f32>, n: Vector3<f32>) -> Vector3<f32> {
-    v - 2. * dot(v, n) * n
-}
-
-fn refract(v: Vector3<f32>, n: Vector3<f32>, ni_over_nt: f32) -> Option<Vector3<f32>> {
-    let unit_v = v.normalize();
-    let dt = dot(unit_v, n);
-    let discriminant = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt);
-    if discriminant > 0. {
-        let refracted = ni_over_nt * (unit_v - n * dt) - n *discriminant.sqrt();
-        Some(refracted)
-    } else {
-        None
-    }
-}
-
-fn schlick(cosine: f32, refractive_index: f32) -> f32 {
-    let r0 = (1.0 - refractive_index) / (1.0 + refractive_index);
-    let r0 = r0 * r0;
-    r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
-}
-
-fn random_in_unit_sphere() -> Vector3<f32> {
-    // :TODD: Check that the initial random vector has values in the range 0..1
-    loop {
-        let p = (2.0 * random::<Vector3<f32>>()) - vec3(1., 1., 1.);
-        if p.magnitude2() < 1. {
-            return p;
-        }
-    }
-}
-
-fn random_in_unit_disk() -> Vector3<f32> {
-    loop {
-        let p = 2.0 * vec3(random::<f32>(), random::<f32>(), 0.) - vec3(1., 1., 0.);
-        if dot(p, p) < 1. {
-            return p;
-        }
-    }
 }
 
 fn hit<'a>(shapes: &'a Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
@@ -290,10 +146,10 @@ fn main() {
 
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
     let mut shapes: Vec<Box<Hitable>> = Vec::new();
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100., material: Box::new(Lambertian { albedo: vec3(0.8, 0.8, 0.0) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
+    shapes.push(Box::new(sphere::Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
+    shapes.push(Box::new(sphere::Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100., material: Box::new(Lambertian { albedo: vec3(0.8, 0.8, 0.0) }) }));
+    shapes.push(Box::new(sphere::Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
+    shapes.push(Box::new(sphere::Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
         
     let mut image: Vec<u8> = Vec::new();
@@ -315,7 +171,7 @@ fn main() {
 
                 // :TODO: Defocus blur - tidy up, move some logic into camera struct
                 let lens_radius = camera.aperture / 2.;
-                let rd = lens_radius * random_in_unit_disk();
+                let rd = lens_radius * random::random_in_unit_disk();
                 let cam_up = view_matrix.transform_vector(vec3(0., 1., 0.));
                 let cam_right = ray_dir.cross(cam_up);
                 let ray_offset = (cam_up * rd.x) + (cam_right * rd.y);
