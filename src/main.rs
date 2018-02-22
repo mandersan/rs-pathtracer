@@ -26,6 +26,8 @@ struct Camera {
     fov: Deg<f32>,
     near: f32,
     far: f32,
+    aperture: f32,
+    focus_distance: f32,
 }
 
 fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
@@ -114,7 +116,7 @@ struct Lambertian {
 }
 
 impl Scatterable for Lambertian {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
+    fn scatter(&self, _ray: &Ray, hit: &Hit) -> Option<Scatter> {
         let target = hit.location + hit.normal + random_in_unit_sphere();
         let scattered_ray = Ray { origin: hit.location, direction: target - hit.location };
         let attenuation = self.albedo;
@@ -158,6 +160,7 @@ impl Scatterable for Dialectric {
             cosine = self.refractive_index * dot(ray.direction, hit.normal) / ray.direction.magnitude();
         } else {
             outward_normal = hit.normal;
+            // :TODO: This assumes air (idx=1) to medium, will need to ensure correct index is used if light is crossing boundary between two mediums
             ni_over_nt = 1. / self.refractive_index;
             cosine = -dot(ray.direction, hit.normal) / ray.direction.magnitude();
         }
@@ -210,6 +213,15 @@ fn random_in_unit_sphere() -> Vector3<f32> {
     }
 }
 
+fn random_in_unit_disk() -> Vector3<f32> {
+    loop {
+        let p = 2.0 * vec3(random::<f32>(), random::<f32>(), 0.) - vec3(1., 1., 0.);
+        if dot(p, p) < 1. {
+            return p;
+        }
+    }
+}
+
 fn hit<'a>(shapes: &'a Vec<Box<Hitable>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
     let mut hit_result: Option<Hit> = None;
     let mut closest = interval.max;
@@ -255,15 +267,19 @@ fn main() {
     let image_width = 640;
     let image_height = 400;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 1000;
+    let num_samples = 50;
 
+    let cam_eye = Point3::new(0., 0., 0.75);
+    let cam_target = Point3::new(0., 0., -1.);
     let camera = Camera {
-        eye: Point3::new(0., 0., 0.75),
-        target: Point3::new(0., 0., -1.),
+        eye: cam_eye,
+        target: cam_target,
         up: vec3(0., 1., 0.),
-        fov: Deg(60.0),
+        fov: Deg(60.),
         near: 0.01,
         far: 100.,
+        aperture: 0.4,
+        focus_distance: (cam_target - cam_eye).magnitude(),
     };
 
     let view_matrix = Matrix4::look_at(camera.eye, camera.target, camera.up);
@@ -285,7 +301,7 @@ fn main() {
     for y in 0..image_height {
         for x in 0..image_width {
             let mut colour = Vector3::zero();
-            for s in 0..num_samples {
+            for _s in 0..num_samples {
                 let sx = (x as f32) + random::<f32>();
                 let sy = (y as f32) + random::<f32>();
 
@@ -296,6 +312,16 @@ fn main() {
                 );
                 let ray_pos = inv_view_projection_matrix.transform_point(ndc);
                 let ray_dir = (ray_pos - camera.eye).normalize();
+
+                // :TODO: Defocus blur - tidy up, move some logic into camera struct
+                let lens_radius = camera.aperture / 2.;
+                let rd = lens_radius * random_in_unit_disk();
+                let cam_up = view_matrix.transform_vector(vec3(0., 1., 0.));
+                let cam_right = ray_dir.cross(cam_up);
+                let ray_offset = (cam_up * rd.x) + (cam_right * rd.y);
+                let focus_point = ray_pos + (ray_dir * camera.focus_distance);
+                let ray_pos = ray_pos + ray_offset;
+                let ray_dir = (focus_point - ray_pos).normalize();
 
                 let ray = Ray {
                     origin: ray_pos,
