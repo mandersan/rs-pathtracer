@@ -1,12 +1,15 @@
 use cgmath::*;
+use rand::{random};
+use raytracing::{Hit, Ray, Scatterable, ScatteredRay};
+use raytracing::util::{maths};
 
 pub struct Dialectric {
-    refractive_index: f32,
+    pub refractive_index: f32,
 }
 
 impl Scatterable for Dialectric {
-    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<Scatter> {
-        let reflected = reflect(ray.direction, hit.normal);
+    fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<ScatteredRay> {
+        let reflected = maths::reflect(ray.direction, hit.normal);
         let attenuation = vec3(1., 1., 1.);
 
         let outward_normal;
@@ -23,16 +26,16 @@ impl Scatterable for Dialectric {
             cosine = -dot(ray.direction, hit.normal) / ray.direction.magnitude();
         }
 
-        let refracted = refract(ray.direction, outward_normal, ni_over_nt);
+        let refracted = maths::refract(ray.direction, outward_normal, ni_over_nt);
         let reflect_probability = match refracted {
             None => 1.0,
-            Some(_refracted) => schlick(cosine, self.refractive_index),
+            Some(_refracted) => maths::schlick(cosine, self.refractive_index),
         };
 
         let scattered = if random::<f32>() < reflect_probability {
-            Scatter { ray: Ray { origin: hit.location, direction: reflected }, attenuation }
+            ScatteredRay { ray: Ray { origin: hit.location, direction: reflected }, attenuation }
         } else {
-            Scatter { ray: Ray { origin: hit.location, direction: refracted.unwrap() }, attenuation }
+            ScatteredRay { ray: Ray { origin: hit.location, direction: refracted.unwrap() }, attenuation }
         };
 
         Some(scattered)

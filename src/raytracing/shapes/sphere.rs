@@ -1,9 +1,10 @@
 use cgmath::*;
+use raytracing::{Hit, Hitable, Interval, Ray, Scatterable};
 
 pub struct Sphere {
-    origin: Point3<f32>,
-    radius: f32,
-    material: Box<Scatterable>,
+    pub origin: Point3<f32>,
+    pub radius: f32,
+    pub material: Box<Scatterable>,
 }
 
 impl Hitable for Sphere {
