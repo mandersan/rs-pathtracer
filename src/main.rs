@@ -21,7 +21,7 @@ use image::png::PNGEncoder;
 use rand::{random};
 use raytracing::materials::{Dialectric, Lambertian, Metal};
 use raytracing::{Hitable, Ray};
-use raytracing::shapes::{Sphere};
+use raytracing::shapes::{Plane, Sphere};
 use raytracing::util::{random};
 use std::fs::File;
 
@@ -58,7 +58,7 @@ fn main() {
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
     let mut shapes: Vec<Box<Hitable>> = Vec::new();
     shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., -100.5, -1.), radius: 100., material: Box::new(Lambertian { albedo: vec3(0.8, 0.8, 0.0) }) }));
+    shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.2, 0.2) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));

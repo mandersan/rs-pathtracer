@@ -15,8 +15,6 @@ impl Hitable for Sphere {
         let c = dot(sphere_to_ray_origin, sphere_to_ray_origin) - (self.radius * self.radius);
         let discriminant = b * b - a * c;
 
-        //println!("{:?} {:?} {:?} {:?} {} {} {} {}", ray.origin, ray.direction, origin, sphere_to_ray_origin, a, b, c, discriminant);
-
         if discriminant > 0. {
             let tmp = (-b - (b * b - a * c).sqrt()) / a;
             if tmp < interval.max && tmp > interval.min {
