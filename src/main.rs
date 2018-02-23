@@ -39,15 +39,15 @@ fn main() {
     let image_width = 640;
     let image_height = 400;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 50;
+    let num_samples = 32;
     let camera = raytracing::cameras::util::create_camera(
-        Point3::new(0., 0., 0.75),
+        Point3::new(0., 0.2, 0.75),
         Point3::new(0., 0., -1.),
         vec3(0., 1., 0.),
         Deg(60.),
         0.01,
         100.,
-        0.4
+        0.2
     );
     let view_matrix = Matrix4::look_at(camera.eye, camera.target, camera.up);
     let projection_matrix = perspective(camera.fov, image_aspect, camera.near, camera.far);
@@ -58,7 +58,7 @@ fn main() {
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
     let mut shapes: Vec<Box<Hitable>> = Vec::new();
     shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., -1.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
-    shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.2, 0.2) }) }));
+    shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., -1.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., -1.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
