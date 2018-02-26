@@ -1,18 +1,19 @@
-/*
-:TODO:
-- Multiple shapes - better/more efficient storage/organisation.
-- Shading model.
-- Lights.
-- Efficient scene organisation.
-- Multi-threaded rendering.
-- Spectral path tracing (single scalar per ray? Randomly pick a wavelength per bounce?)
-- Preview output in window.
-- Command line args parsing (output to file/window).
-*/
+// /*
+// :TODO:
+// - Multiple shapes - better/more efficient storage/organisation.
+// - Shading model.
+// - Lights.
+// - Efficient scene organisation.
+// - Multi-threaded rendering.
+// - Spectral path tracing (single scalar per ray? Randomly pick a wavelength per bounce?)
+// - Preview output in window.
+// - Command line args parsing (output to file/window).
+// */
 
 extern crate cgmath;
 extern crate image;
 extern crate rand;
+extern crate sdl2;
 mod raytracing;
 
 use cgmath::*;
@@ -23,6 +24,10 @@ use raytracing::materials::{Dialectric, Lambertian, Metal};
 use raytracing::{Hitable, Ray};
 use raytracing::shapes::{Plane, Sphere};
 use raytracing::util::{random};
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
 use std::fs::File;
 
 fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
@@ -111,4 +116,56 @@ fn main() {
 
     // Save image as file
     write_png_rgb8("output.png", image.as_slice(), (image_width, image_height)).expect("Unable to save PNG");
+
+
+
+    //-----
+
+
+
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem.window("rust-sdl2 demo: Video", image_width, image_height)
+        .position_centered()
+        //.opengl()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+
+    let mut texture = texture_creator.create_texture_streaming(
+        PixelFormatEnum::RGB24, image_width, image_height).unwrap();
+    // Create a red-green gradient
+    texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+        for y in 0..image_height as usize {
+            for x in 0..image_width as usize {
+                let offset = y*pitch + x*3;
+                let offset_in = y*(image_width * 3) as usize + x*3;
+                buffer[offset + 0] = image[offset_in + 0];
+                buffer[offset + 1] = image[offset_in + 1];
+                buffer[offset + 2] = image[offset_in + 2];
+            }
+        }
+    }).unwrap();
+
+    canvas.clear();
+    canvas.copy(&texture, None, Some(Rect::new(0, 0, image_width, image_height))).unwrap();
+    canvas.present();
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
+    'running: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} 
+                | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running
+                },
+                _ => {}
+            }
+        }
+        // The rest of the game loop goes here...
+    }
 }
