@@ -11,7 +11,9 @@
 // */
 
 extern crate cgmath;
+extern crate crossbeam;
 extern crate image;
+extern crate num_cpus;
 extern crate rand;
 extern crate sdl2;
 mod raytracing;
@@ -39,6 +41,65 @@ use sdl2::keyboard::Keycode;
 //     Ok(())
 // }
 
+fn render(
+    pixels: &mut [u8],
+    top_left: (usize, usize),
+    bounds: (usize, usize),
+    num_samples: u32,
+    image_width: usize,
+    image_height: usize,
+    view_matrix: &Matrix4<f32>,
+    inv_view_projection_matrix: &Matrix4<f32>,
+    camera: &raytracing::cameras::Camera,
+    shapes: &Vec<Box<Hitable+Sync>>,
+)
+{
+    for y in top_left.1..bounds.1 {
+        for x in top_left.0..bounds.0 {
+            let mut colour = Vector3::zero();
+            for _s in 0..num_samples {
+                let sx = (x as f32) + random::<f32>();
+                let sy = (y as f32) + random::<f32>();
+
+                let ndc = Point3::new(
+                    (sx as f32 / (image_width as f32 / 2.)) - 1.,
+                    (-(sy as f32) / (image_height as f32 / 2.)) + 1.,
+                    0.
+                );
+                let ray_pos = inv_view_projection_matrix.transform_point(ndc);
+                let ray_dir = (ray_pos - camera.eye).normalize();
+
+                // :TODO: Defocus blur - tidy up, move some logic into camera struct
+                let lens_radius = camera.aperture / 2.;
+                let rd = lens_radius * random::random_in_unit_disk();
+                let cam_up = view_matrix.transform_vector(vec3(0., 1., 0.));
+                let cam_right = ray_dir.cross(cam_up);
+                let ray_offset = (cam_up * rd.x) + (cam_right * rd.y);
+                let focus_point = ray_pos + (ray_dir * camera.focal_distance);
+                let ray_pos = ray_pos + ray_offset;
+                let ray_dir = (focus_point - ray_pos).normalize();
+
+                let ray = Ray {
+                    origin: ray_pos,
+                    direction: ray_dir
+                };
+
+                colour += raytracing::tracing::trace(shapes, &ray, 0);
+            }
+            colour = colour / (num_samples as f32);
+
+            // Gamma correct & convert to 8bpp
+            let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt()) * 255.;
+            let Vector3 { x: r, y: g, z: b} = colour;
+
+            let base = ((y * image_width) + x) * 3;
+            pixels[base + 0] = r as u8;
+            pixels[base + 1] = g as u8;
+            pixels[base + 2] = b as u8;
+        }
+    }
+}
+
 fn main() {
     // Set up image output & camera
     let window_width = 640;
@@ -50,7 +111,7 @@ fn main() {
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
-    let mut shapes: Vec<Box<Hitable>> = Vec::new();
+    let mut shapes: Vec<Box<Hitable+Sync>> = Vec::new();
     shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., 0.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
     shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
@@ -105,54 +166,30 @@ fn main() {
         let view_projection_matrix = projection_matrix * view_matrix;
         let inv_view_projection_matrix = view_projection_matrix.inverse_transform().unwrap();
 
-        // Raytrace scene
-        let mut image: Vec<u8> = Vec::new();
-        for y in 0..image_height {
-            for x in 0..image_width {
-                let mut colour = Vector3::zero();
-                for _s in 0..num_samples {
-                    let sx = (x as f32) + random::<f32>();
-                    let sy = (y as f32) + random::<f32>();
+        let mut image: Vec<u8> = vec![0; image_width * image_height * 3];
 
-                    let ndc = Point3::new(
-                        (sx as f32 / (image_width as f32 / 2.)) - 1.,
-                        (-(sy as f32) / (image_height as f32 / 2.)) + 1.,
-                        0.
-                    );
-                    let ray_pos = inv_view_projection_matrix.transform_point(ndc);
-                    let ray_dir = (ray_pos - camera.eye).normalize();
 
-                    // :TODO: Defocus blur - tidy up, move some logic into camera struct
-                    let lens_radius = camera.aperture / 2.;
-                    let rd = lens_radius * random::random_in_unit_disk();
-                    let cam_up = view_matrix.transform_vector(vec3(0., 1., 0.));
-                    let cam_right = ray_dir.cross(cam_up);
-                    let ray_offset = (cam_up * rd.x) + (cam_right * rd.y);
-                    let focus_point = ray_pos + (ray_dir * camera.focal_distance);
-                    let ray_pos = ray_pos + ray_offset;
-                    let ray_dir = (focus_point - ray_pos).normalize();
+        let thread_count = num_cpus::get();
+        let rows_per_band = image_height / thread_count + 1;
 
-                    let ray = Ray {
-                        origin: ray_pos,
-                        direction: ray_dir
-                    };
-
-                    colour += raytracing::tracing::trace(&shapes, &ray, 0);
+        {
+            let bands: Vec<&mut [u8]> = image.chunks_mut(rows_per_band * image_width).collect();
+            crossbeam::scope(|scope| {
+                for (i, band) in bands.into_iter().enumerate() {
+                    let top = rows_per_band * i;
+                    let height = band.len() / image_width;
+                    let top_left = (0, top);
+                    let band_bounds = (image_width, height);
+                    scope.spawn(move || {
+                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, &camera, &shapes);
+                    });
                 }
-                colour = colour / (num_samples as f32);
-
-                // Gamma correct & convert to 8bpp
-                let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt()) * 255.;
-                let Vector3 { x: r, y: g, z: b} = colour;
-
-                image.push(r as u8);
-                image.push(g as u8);
-                image.push(b as u8);
-            }
+            });
         }
 
+
         let mut texture = texture_creator.create_texture_streaming(
-            PixelFormatEnum::RGB24, image_width, image_height).unwrap();
+            PixelFormatEnum::RGB24, image_width as u32, image_height as u32).unwrap();
         // Create a red-green gradient
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
             for y in 0..image_height as usize {

@@ -4,7 +4,7 @@ use raytracing::{Hit, Hitable, Interval, Ray, Scatterable};
 pub struct Plane {
     pub origin: Point3<f32>,
     pub normal: Vector3<f32>,
-    pub material: Box<Scatterable>,
+    pub material: Box<Scatterable+Sync>,
 }
 
 impl Hitable for Plane {
