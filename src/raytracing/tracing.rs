@@ -2,7 +2,7 @@ use cgmath::*;
 use raytracing::{Hitable, Hit, Interval, Ray};
 use std::f32;
 
-pub fn hit<'a>(shapes: &'a Vec<Box<Hitable+Sync>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
+pub fn hit<'a>(shapes: &'a Vec<Box<Hitable+Sync+Send>>, ray: &Ray, interval: &Interval) -> Option<Hit<'a>> {
     let mut hit_result: Option<Hit> = None;
     let mut closest = interval.max;
     for shape in shapes
@@ -15,7 +15,7 @@ pub fn hit<'a>(shapes: &'a Vec<Box<Hitable+Sync>>, ray: &Ray, interval: &Interva
     return hit_result;
 }
 
-pub fn trace(shapes: &Vec<Box<Hitable+Sync>>, ray: &Ray, depth: u32) -> Vector3<f32> {
+pub fn trace(shapes: &Vec<Box<Hitable+Sync+Send>>, ray: &Ray, depth: u32) -> Vector3<f32> {
     let hit = hit(shapes, ray, &Interval { min: 0.001, max: f32::MAX });
     let colour = match hit {
         None => {

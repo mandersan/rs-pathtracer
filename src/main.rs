@@ -31,6 +31,7 @@ use sdl2::rect::Rect;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 // use std::fs::File;
+use std::sync::Arc;
 
 // fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
 //     -> Result<(), std::io::Error>
@@ -41,7 +42,7 @@ use sdl2::keyboard::Keycode;
 //     Ok(())
 // }
 
-fn render(
+fn render<'a>(
     pixels: &mut [u8],
     top_left: (usize, usize),
     bounds: (usize, usize),
@@ -51,15 +52,15 @@ fn render(
     view_matrix: &Matrix4<f32>,
     inv_view_projection_matrix: &Matrix4<f32>,
     camera: &raytracing::cameras::Camera,
-    shapes: &Vec<Box<Hitable+Sync>>,
+    shapes: &'a Vec<Box<Hitable+Sync+Send>>,
 )
 {
-    for y in top_left.1..bounds.1 {
-        for x in top_left.0..bounds.0 {
+    for y in 0..bounds.1 {
+        for x in 0..bounds.0 {
             let mut colour = Vector3::zero();
             for _s in 0..num_samples {
-                let sx = (x as f32) + random::<f32>();
-                let sy = (y as f32) + random::<f32>();
+                let sx = ((x + top_left.0) as f32) + random::<f32>();
+                let sy = ((y + top_left.1) as f32) + random::<f32>();
 
                 let ndc = Point3::new(
                     (sx as f32 / (image_width as f32 / 2.)) - 1.,
@@ -107,17 +108,18 @@ fn main() {
     let image_width = 320;
     let image_height = 240;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 2;
+    let num_samples = 8;
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
-    let mut shapes: Vec<Box<Hitable+Sync>> = Vec::new();
+    let mut shapes: Vec<Box<Hitable+Sync+Send>> = Vec::new();
     shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., 0.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
     shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
 
+    let shapes_arc = Arc::new(shapes);
 
     let mut cam_pos = Point3::new(0., 0.2, 1.75);
 
@@ -161,8 +163,9 @@ fn main() {
             100.,
             0.2
         );
-        let view_matrix = Matrix4::look_at(camera.eye, camera.target, camera.up);
-        let projection_matrix = perspective(camera.fov, image_aspect, camera.near, camera.far);
+        let camera_arc = Arc::new(camera);
+        let view_matrix = Matrix4::look_at(camera_arc.eye, camera_arc.target, camera_arc.up);
+        let projection_matrix = perspective(camera_arc.fov, image_aspect, camera_arc.near, camera_arc.far);
         let view_projection_matrix = projection_matrix * view_matrix;
         let inv_view_projection_matrix = view_projection_matrix.inverse_transform().unwrap();
 
@@ -170,18 +173,21 @@ fn main() {
 
 
         let thread_count = num_cpus::get();
-        let rows_per_band = image_height / thread_count + 1;
+        
+        let rows_per_band = image_height / thread_count;
 
         {
-            let bands: Vec<&mut [u8]> = image.chunks_mut(rows_per_band * image_width).collect();
+            let bands: Vec<&mut [u8]> = image.chunks_mut(rows_per_band * image_width * 3).collect();
             crossbeam::scope(|scope| {
                 for (i, band) in bands.into_iter().enumerate() {
                     let top = rows_per_band * i;
-                    let height = band.len() / image_width;
+                    let height = band.len() / (image_width * 3);
                     let top_left = (0, top);
                     let band_bounds = (image_width, height);
+                    let camera_for_thread = camera_arc.clone();
+                    let shapes_for_thread = shapes_arc.clone();
                     scope.spawn(move || {
-                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, &camera, &shapes);
+                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, &camera_for_thread, &shapes_for_thread);
                     });
                 }
             });
