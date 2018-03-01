@@ -1,5 +1,5 @@
 use cgmath::*;
-use raytracing::{Hit, Ray, Scatterable, ScatteredRay};
+use raytracing::{Emitting, Hit, Ray, Scattering, ScatteringAndEmitting, ScatteredRay};
 use raytracing::util::{maths, random};
 
 pub struct Metal {
@@ -7,7 +7,7 @@ pub struct Metal {
     pub fuzziness: f32,
 }
 
-impl Scatterable for Metal {
+impl Scattering for Metal {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<ScatteredRay> {
         let reflected = maths::reflect(ray.direction.normalize(), hit.normal);
         let scattered_ray = Ray{ origin: hit.location, direction: reflected + self.fuzziness * random::random_in_unit_sphere() };
@@ -19,3 +19,6 @@ impl Scatterable for Metal {
         }        
     }
 }
+
+impl Emitting for Metal {}
+impl ScatteringAndEmitting for Metal {}

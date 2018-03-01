@@ -1,10 +1,10 @@
 use cgmath::*;
-use raytracing::{Hit, Hitable, Interval, Ray, Scatterable};
+use raytracing::{Hit, Hitable, Interval, Ray, ScatteringAndEmitting};
 
 pub struct Plane {
     pub origin: Point3<f32>,
     pub normal: Vector3<f32>,
-    pub material: Box<Scatterable+Sync>,
+    pub material: Box<ScatteringAndEmitting+Sync>,
 }
 
 impl Hitable for Plane {

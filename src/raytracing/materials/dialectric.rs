@@ -1,13 +1,13 @@
 use cgmath::*;
 use rand::{random};
-use raytracing::{Hit, Ray, Scatterable, ScatteredRay};
+use raytracing::{Emitting, Hit, Ray, Scattering, ScatteringAndEmitting, ScatteredRay};
 use raytracing::util::{maths};
 
 pub struct Dialectric {
     pub refractive_index: f32,
 }
 
-impl Scatterable for Dialectric {
+impl Scattering for Dialectric {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<ScatteredRay> {
         let reflected = maths::reflect(ray.direction, hit.normal);
         let attenuation = vec3(1., 1., 1.);
@@ -41,3 +41,6 @@ impl Scatterable for Dialectric {
         Some(scattered)
     }
 }
+
+impl Emitting for Dialectric {}
+impl ScatteringAndEmitting for Dialectric {}

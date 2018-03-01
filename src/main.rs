@@ -22,9 +22,9 @@ use cgmath::*;
 // use image::ColorType;
 // use image::png::PNGEncoder;
 use rand::{random};
-use raytracing::materials::{Dialectric, Lambertian, Metal};
+use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
 use raytracing::{HitableCollection, Ray};
-use raytracing::shapes::{Plane, Sphere};
+use raytracing::shapes::{Plane, RectXY, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -89,7 +89,11 @@ fn render(
             colour = colour / (num_samples as f32);
 
             // Gamma correct & convert to 8bpp
-            let colour = vec3(colour.x.sqrt(), colour.y.sqrt(), colour.z.sqrt()) * 255.;
+            let colour = vec3(
+                colour.x.min(1.0).sqrt(),
+                colour.y.min(1.0).sqrt(),
+                colour.z.min(1.0).sqrt()
+            ) * 255.;
             let Vector3 { x: r, y: g, z: b} = colour;
 
             let base = ((y * image_width) + x) * 3;
@@ -117,6 +121,7 @@ fn main() {
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
+    shapes.push(Box::new(RectXY { x0: -1.0, x1: 1.0, y0: -0.5, y1: 0.0, k: -1., material: Box::new(DiffuseLight { colour: vec3(2., 2., 2.) }) }));
 
     let mut cam_pos = Point3::new(0., 0.2, 1.75);
 
