@@ -24,7 +24,7 @@ use cgmath::*;
 use rand::{random};
 use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
 use raytracing::{HitableCollection, Ray};
-use raytracing::shapes::{Plane, RectXY, Sphere};
+use raytracing::shapes::{Plane, RectXZ, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -121,7 +121,7 @@ fn main() {
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
     //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
-    shapes.push(Box::new(RectXY { x0: -1.0, x1: 1.0, y0: -0.5, y1: 0.0, k: -1., material: Box::new(DiffuseLight { colour: vec3(2., 2., 2.) }) }));
+    shapes.push(Box::new(RectXZ { x0: -0.5, x1: 0.5, z0: -0.5, z1: 0.5, k: 2., material: Box::new(DiffuseLight { colour: vec3(4., 4., 4.) }) }));
 
     let mut cam_pos = Point3::new(0., 0.2, 1.75);
 

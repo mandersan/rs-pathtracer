@@ -17,6 +17,7 @@ pub struct Hit<'a> {
     pub location: Point3<f32>,
     pub normal: Vector3<f32>,
     pub material: &'a (ScatteringAndEmitting + 'a), // :TODO: Better undestand lifetime use here
+    // pub uv: Point2<f32>,
 }
 
 pub struct ScatteredRay {
