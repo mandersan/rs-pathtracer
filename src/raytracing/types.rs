@@ -29,3 +29,5 @@ pub trait Hitable {
 pub trait Scatterable {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<ScatteredRay>;
 }
+
+pub type HitableCollection = Vec<Box<Hitable + Sync>>;

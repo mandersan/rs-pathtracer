@@ -23,7 +23,7 @@ use cgmath::*;
 // use image::png::PNGEncoder;
 use rand::{random};
 use raytracing::materials::{Dialectric, Lambertian, Metal};
-use raytracing::{Hitable, Ray};
+use raytracing::{HitableCollection, Ray};
 use raytracing::shapes::{Plane, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
@@ -51,7 +51,7 @@ fn render<'a>(
     view_matrix: &Matrix4<f32>,
     inv_view_projection_matrix: &Matrix4<f32>,
     camera: &raytracing::cameras::Camera,
-    shapes: &'a Vec<Box<Hitable+Sync>>,
+    shapes: &'a HitableCollection,
 )
 {
     for y in 0..bounds.1 {
@@ -111,7 +111,7 @@ fn main() {
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
-    let mut shapes: Vec<Box<Hitable+Sync>> = Vec::new();
+    let mut shapes: HitableCollection = Vec::new();
     shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., 0.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
     shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
     shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
