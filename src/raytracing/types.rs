@@ -40,3 +40,5 @@ pub trait Emitting {
         vec3(0., 0., 0.)
     }
 }
+
+pub type Material = Box<ScatteringAndEmitting+Sync>;

@@ -25,7 +25,7 @@ use rand::{random};
 use raytracing::cameras::{Camera};
 use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
 use raytracing::{HitableCollection, Ray};
-use raytracing::shapes::{Plane, RectXY, RectXZ, RectYZ, Sphere};
+use raytracing::shapes::{Cuboid, Plane, RectXY, RectXZ, RectYZ, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -55,13 +55,20 @@ fn scene_test() -> HitableCollection {
 
 fn scene_cornell_box() -> HitableCollection {
     let mut shapes: HitableCollection = Vec::new();
+    // Walls
     shapes.push(Box::new(RectYZ { y0: 0., y1: 555., z0: 0., z1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.12, 0.45, 0.15) }) }));
     shapes.push(Box::new(RectYZ { y0: 0., y1: 555., z0: 0., z1: 555., k: 0., material: Box::new(Lambertian { albedo: vec3(0.65, 0.05, 0.05) }) }));
-    shapes.push(Box::new(RectXZ { x0: 213., x1: 343., z0: 227., z1: 332., k: 554., material: Box::new(DiffuseLight { colour: vec3(15., 15., 15.) }) }));
     shapes.push(Box::new(RectXZ { x0: 0., x1: 555., z0: 0., z1: 555., k: 0., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
     shapes.push(Box::new(RectXZ { x0: 0., x1: 555., z0: 0., z1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
     shapes.push(Box::new(RectXY { x0: 0., x1: 555., y0: 0., y1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
+    // Light
+    shapes.push(Box::new(RectXZ { x0: 213., x1: 343., z0: 227., z1: 332., k: 554., material: Box::new(DiffuseLight { colour: vec3(15., 15., 15.) }) }));
+    // Boxes
+    shapes.push(Box::new(Cuboid::new(Point3::new(212.5, 82.5, 147.5), vec3(165., 165., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));
+    shapes.push(Box::new(Cuboid::new(Point3::new(347.5, 165., 377.5), vec3(165., 330., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));   
     shapes
+
+    // :TODO: Boxes not oriented properly, need shape transformations
 }
 fn camera_cornell_box() -> Camera {
     let camera = raytracing::cameras::util::create_camera(
@@ -146,7 +153,7 @@ fn main() {
     let image_width = 320;
     let image_height = 240;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 256;
+    let num_samples = 1000;
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.

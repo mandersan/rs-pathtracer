@@ -12,3 +12,4 @@ pub use self::types::{Hit, Hitable, HitableCollection};
 pub use self::types::{ScatteredRay, Scattering};
 pub use self::types::{Emitting};
 pub use self::types::{ScatteringAndEmitting};
+pub use self::types::{Material};
