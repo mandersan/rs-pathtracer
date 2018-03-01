@@ -22,9 +22,10 @@ use cgmath::*;
 // use image::ColorType;
 // use image::png::PNGEncoder;
 use rand::{random};
+use raytracing::cameras::{Camera};
 use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
 use raytracing::{HitableCollection, Ray};
-use raytracing::shapes::{Plane, RectXZ, Sphere};
+use raytracing::shapes::{Plane, RectXY, RectXZ, RectYZ, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -40,6 +41,40 @@ use sdl2::keyboard::Keycode;
 //     encoder.encode(pixels, dimensions.0, dimensions.1, ColorType::RGB(8))?;
 //     Ok(())
 // }
+
+fn scene_test() -> HitableCollection {
+    let mut shapes: HitableCollection = Vec::new();
+    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., 0.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
+    shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
+    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
+    //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
+    shapes.push(Box::new(RectXZ { x0: -0.5, x1: 0.5, z0: -0.5, z1: 0.5, k: 2., material: Box::new(DiffuseLight { colour: vec3(4., 4., 4.) }) }));
+    shapes
+}
+
+fn scene_cornell_box() -> HitableCollection {
+    let mut shapes: HitableCollection = Vec::new();
+    shapes.push(Box::new(RectYZ { y0: 0., y1: 555., z0: 0., z1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.12, 0.45, 0.15) }) }));
+    shapes.push(Box::new(RectYZ { y0: 0., y1: 555., z0: 0., z1: 555., k: 0., material: Box::new(Lambertian { albedo: vec3(0.65, 0.05, 0.05) }) }));
+    shapes.push(Box::new(RectXZ { x0: 213., x1: 343., z0: 227., z1: 332., k: 554., material: Box::new(DiffuseLight { colour: vec3(15., 15., 15.) }) }));
+    shapes.push(Box::new(RectXZ { x0: 0., x1: 555., z0: 0., z1: 555., k: 0., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
+    shapes.push(Box::new(RectXZ { x0: 0., x1: 555., z0: 0., z1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
+    shapes.push(Box::new(RectXY { x0: 0., x1: 555., y0: 0., y1: 555., k: 555., material: Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }) }));
+    shapes
+}
+fn camera_cornell_box() -> Camera {
+    let camera = raytracing::cameras::util::create_camera(
+        Point3::new(278., 278., -800.),
+        Point3::new(278., 278., 0.),
+        vec3(0., 1., 0.),
+        Deg(40.),
+        0.01,
+        100.,
+        0.,
+    );
+    camera
+}
 
 fn render(
     pixels: &mut [u8],
@@ -111,19 +146,14 @@ fn main() {
     let image_width = 320;
     let image_height = 240;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 4;
+    let num_samples = 256;
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
-    let mut shapes: HitableCollection = Vec::new();
-    shapes.push(Box::new(Sphere { origin: Point3::new(0., 0., 0.), radius: 0.5, material: Box::new(Lambertian { albedo: vec3(0.1, 0.2, 0.5) }) }));
-    shapes.push(Box::new(Plane { origin: Point3::new(0., -0.5, 0.), normal: vec3(0., 1., 0.), material: Box::new(Lambertian { albedo: vec3(0.2, 0.5, 0.2) }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(1., 0., 0.), radius: 0.5, material: Box::new(Metal { albedo: vec3(0.8, 0.6, 0.2), fuzziness: 0.3 }) }));
-    shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: 0.5, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
-    //shapes.push(Box::new(Sphere { origin: Point3::new(-1., 0., 0.), radius: -0.45, material: Box::new(Dialectric { refractive_index: 1.5 }) }));
-    shapes.push(Box::new(RectXZ { x0: -0.5, x1: 0.5, z0: -0.5, z1: 0.5, k: 2., material: Box::new(DiffuseLight { colour: vec3(4., 4., 4.) }) }));
+    //let shapes = scene_test();
+    let shapes = scene_cornell_box();
 
-    let mut cam_pos = Point3::new(0., 0.2, 1.75);
+    //let mut cam_pos = Point3::new(0., 0.2, 1.75);
 
 
 
@@ -153,18 +183,18 @@ fn main() {
         }
         // The rest of the game loop goes here...
 
-        let rotation = Matrix3::from_angle_y(Deg(1.));
-        cam_pos = rotation.transform_point(cam_pos);
-
-        let camera = raytracing::cameras::util::create_camera(
-            cam_pos,
-            Point3::new(0., 0., 0.),
-            vec3(0., 1., 0.),
-            Deg(60.),
-            0.01,
-            100.,
-            0.2
-        );
+        // let rotation = Matrix3::from_angle_y(Deg(1.));
+        // cam_pos = rotation.transform_point(cam_pos);
+        // let camera = raytracing::cameras::util::create_camera(
+        //     cam_pos,
+        //     Point3::new(0., 0., 0.),
+        //     vec3(0., 1., 0.),
+        //     Deg(60.),
+        //     0.01,
+        //     100.,
+        //     0.2
+        // );
+        let camera = camera_cornell_box();
         let view_matrix = Matrix4::look_at(camera.eye, camera.target, camera.up);
         let projection_matrix = perspective(camera.fov, image_aspect, camera.near, camera.far);
         let view_projection_matrix = projection_matrix * view_matrix;

@@ -12,7 +12,8 @@ pub struct RectXY {
 
 impl Hitable for RectXY {
     fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit> {
-		let t = (self.k - ray.origin.z) / ray.direction.z;
+		let ray_z_to_k = self.k - ray.origin.z;
+		let t = ray_z_to_k / ray.direction.z;
 		if (t < interval.min) || (t > interval.max) {
 			return None;
 		}
@@ -24,7 +25,7 @@ impl Hitable for RectXY {
 		Some(Hit {
 			distance: t,
 			location: Point3::new(x, y, self.k),
-			normal: vec3(0., 0., 1.),
+			normal: vec3(0., 0., -ray_z_to_k.signum()),
 			material: &*self.material,
 			// uv: vec2((x - self.x0) / (self.x1 - self.x0), (y - self.y0) / (self.y1 - self.y0)),
 		})
