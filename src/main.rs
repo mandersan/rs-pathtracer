@@ -41,7 +41,7 @@ use sdl2::keyboard::Keycode;
 //     Ok(())
 // }
 
-fn render<'a>(
+fn render(
     pixels: &mut [u8],
     top_left: (usize, usize),
     bounds: (usize, usize),
@@ -51,7 +51,7 @@ fn render<'a>(
     view_matrix: &Matrix4<f32>,
     inv_view_projection_matrix: &Matrix4<f32>,
     camera: &raytracing::cameras::Camera,
-    shapes: &'a HitableCollection,
+    shapes: & HitableCollection,
 )
 {
     for y in 0..bounds.1 {
