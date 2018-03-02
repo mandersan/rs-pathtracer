@@ -155,7 +155,7 @@ fn main() {
     let image_width = 320;
     let image_height = 200;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 1000;
+    let num_samples = 10;
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
