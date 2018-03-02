@@ -64,8 +64,10 @@ fn scene_cornell_box() -> HitableCollection {
     // Light
     shapes.push(Box::new(RectXZ { x0: 213., x1: 343., z0: 227., z1: 332., k: 554., material: Box::new(DiffuseLight { colour: vec3(15., 15., 15.) }) }));
     // Boxes
-    shapes.push(Box::new(Cuboid::new(Point3::new(212.5, 82.5, 147.5), vec3(165., 165., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));
-    shapes.push(Box::new(Cuboid::new(Point3::new(347.5, 165., 377.5), vec3(165., 330., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));   
+    let transform = Matrix4::from_translation(vec3(212.5, 82.5, 147.5)) * Matrix4::from_angle_y(Deg(-18.));
+    shapes.push(Box::new(Cuboid::new(transform, vec3(165., 165., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));
+    let transform = Matrix4::from_translation(vec3(347.5, 165., 377.5)) * Matrix4::from_angle_y(Deg(15.));
+    shapes.push(Box::new(Cuboid::new(transform, vec3(165., 330., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));   
     shapes
 
     // :TODO: Boxes not oriented properly, need shape transformations
@@ -149,9 +151,9 @@ fn render(
 fn main() {
     // Set up image output & camera
     let window_width = 640;
-    let window_height = 480;
+    let window_height = 400;
     let image_width = 320;
-    let image_height = 240;
+    let image_height = 200;
     let image_aspect = image_width as f32 / image_height as f32;
     let num_samples = 1000;
 
