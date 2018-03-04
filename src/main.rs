@@ -69,8 +69,6 @@ fn scene_cornell_box() -> HitableCollection {
     let transform = Matrix4::from_translation(vec3(347.5, 165., 377.5)) * Matrix4::from_angle_y(Deg(15.));
     shapes.push(Box::new(Cuboid::new(transform, vec3(165., 330., 165.), Box::new(Lambertian { albedo: vec3(0.73, 0.73, 0.73) }))));   
     shapes
-
-    // :TODO: Boxes not oriented properly, need shape transformations
 }
 fn camera_cornell_box() -> Camera {
     let camera = raytracing::cameras::util::create_camera(
