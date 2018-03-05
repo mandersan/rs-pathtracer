@@ -14,17 +14,16 @@ impl Scattering for Dialectric {
 
         let outward_normal;
         let ni_over_nt;
-        let cosine;
-        if dot(ray.direction, hit.normal) > 0. {
+        let cosine = if dot(ray.direction, hit.normal) > 0. {
             outward_normal = -hit.normal;
             ni_over_nt = self.refractive_index;
-            cosine = self.refractive_index * dot(ray.direction, hit.normal) / ray.direction.magnitude();
+            self.refractive_index * dot(ray.direction, hit.normal) / ray.direction.magnitude()
         } else {
             outward_normal = hit.normal;
             // :TODO: This assumes air (idx=1) to medium, will need to ensure correct index is used if light is crossing boundary between two mediums
             ni_over_nt = 1. / self.refractive_index;
-            cosine = -dot(ray.direction, hit.normal) / ray.direction.magnitude();
-        }
+            -dot(ray.direction, hit.normal) / ray.direction.magnitude()
+        };
 
         let refracted = maths::refract(ray.direction, outward_normal, ni_over_nt);
         let reflect_probability = match refracted {

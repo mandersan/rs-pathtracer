@@ -24,7 +24,7 @@ use cgmath::*;
 use rand::{random};
 use raytracing::cameras::{Camera};
 use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
-use raytracing::{HitableCollection, Ray};
+use raytracing::{BoxedHitable, HitableCollection, Ray};
 use raytracing::shapes::{Cuboid, Plane, RectXY, RectXZ, RectYZ, Sphere};
 use raytracing::util::{random};
 use sdl2::pixels::PixelFormatEnum;
@@ -71,7 +71,7 @@ fn scene_cornell_box() -> HitableCollection {
     shapes
 }
 fn camera_cornell_box() -> Camera {
-    let camera = raytracing::cameras::util::create_camera(
+    raytracing::cameras::util::create_camera(
         Point3::new(278., 278., -800.),
         Point3::new(278., 278., 0.),
         vec3(0., 1., 0.),
@@ -79,8 +79,7 @@ fn camera_cornell_box() -> Camera {
         0.01,
         100.,
         0.,
-    );
-    camera
+    )
 }
 
 fn render(
@@ -93,7 +92,7 @@ fn render(
     view_matrix: &Matrix4<f32>,
     inv_view_projection_matrix: &Matrix4<f32>,
     camera: &raytracing::cameras::Camera,
-    shapes: & HitableCollection,
+    shapes: &[BoxedHitable],
 )
 {
     for y in 0..bounds.1 {
@@ -128,7 +127,7 @@ fn render(
 
                 colour += raytracing::tracing::trace(shapes, &ray, 0);
             }
-            colour = colour / (num_samples as f32);
+            colour /= num_samples as f32;
 
             // Gamma correct & convert to 8bpp
             let colour = vec3(
@@ -139,7 +138,7 @@ fn render(
             let Vector3 { x: r, y: g, z: b} = colour;
 
             let base = ((y * image_width) + x) * 3;
-            pixels[base + 0] = r as u8;
+            pixels[base] = r as u8;
             pixels[base + 1] = g as u8;
             pixels[base + 2] = b as u8;
         }
@@ -240,7 +239,7 @@ fn main() {
                 for x in 0..image_width as usize {
                     let offset = y*pitch + x*3;
                     let offset_in = y*(image_width * 3) as usize + x*3;
-                    buffer[offset + 0] = image[offset_in + 0];
+                    buffer[offset] = image[offset_in];
                     buffer[offset + 1] = image[offset_in + 1];
                     buffer[offset + 2] = image[offset_in + 2];
                 }

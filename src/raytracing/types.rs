@@ -16,7 +16,7 @@ pub struct Hit<'a> {
     pub distance: f32,
     pub location: Point3<f32>,
     pub normal: Vector3<f32>,
-    pub material: &'a (ScatteringAndEmitting + 'a), // :TODO: Better undestand lifetime use here
+    pub material: &'a(ScatteringAndEmitting + 'a), // :TODO: Better undestand lifetime use here
     // pub uv: Point2<f32>,
 }
 
@@ -29,7 +29,8 @@ pub trait Hitable {
     fn hit(&self, ray: &Ray, interval: &Interval) -> Option<Hit>;
 }
 
-pub type HitableCollection = Vec<Box<Hitable + Sync>>;
+pub type BoxedHitable = Box<Hitable + Sync>;
+pub type HitableCollection = Vec<BoxedHitable>;
 
 pub trait Scattering {
     fn scatter(&self, ray: &Ray, hit: &Hit) -> Option<ScatteredRay>;
