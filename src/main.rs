@@ -103,8 +103,8 @@ fn render(
                 let sy = ((y + top_left.1) as f32) + random::<f32>();
 
                 let ndc = Point3::new(
-                    (sx as f32 / (image_width as f32 / 2.)) - 1.,
-                    (-(sy as f32) / (image_height as f32 / 2.)) + 1.,
+                    (sx / (image_width as f32 / 2.)) - 1.,
+                    (-sy / (image_height as f32 / 2.)) + 1.,
                     0.
                 );
                 let ray_pos = inv_view_projection_matrix.transform_point(ndc);
