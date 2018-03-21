@@ -83,7 +83,7 @@ fn camera_cornell_box() -> Camera {
 }
 
 fn render(
-    pixels: &mut [u8],
+    pixels: &mut [f32],
     top_left: (usize, usize),
     bounds: (usize, usize),
     num_samples: u32,
@@ -129,18 +129,12 @@ fn render(
             }
             colour /= num_samples as f32;
 
-            // Gamma correct & convert to 8bpp
-            let colour = vec3(
-                colour.x.min(1.0).sqrt(),
-                colour.y.min(1.0).sqrt(),
-                colour.z.min(1.0).sqrt()
-            ) * 255.;
             let Vector3 { x: r, y: g, z: b} = colour;
 
             let base = ((y * image_width) + x) * 3;
-            pixels[base] = r as u8;
-            pixels[base + 1] = g as u8;
-            pixels[base + 2] = b as u8;
+            pixels[base] = r;
+            pixels[base + 1] = g;
+            pixels[base + 2] = b;
         }
     }
 }
@@ -149,10 +143,15 @@ fn main() {
     // Set up image output & camera
     let window_width = 640;
     let window_height = 400;
-    let image_width = 320;
-    let image_height = 200;
+    let image_width = 640;
+    let image_height = 400;
     let image_aspect = image_width as f32 / image_height as f32;
-    let num_samples = 10;
+    let num_samples = 1;//20;
+
+    let mut total_samples = 0.0;
+
+    let num_pixels = image_width * image_height;
+    let mut accumulated_image: Vec<f32> = vec![0.0; num_pixels * 3];
 
     // Build scene
     // :TODO: Think further about how to represent a collection of hetergenous objects uniformly.
@@ -206,7 +205,7 @@ fn main() {
         let view_projection_matrix = projection_matrix * view_matrix;
         let inv_view_projection_matrix = view_projection_matrix.inverse_transform().unwrap();
 
-        let mut image: Vec<u8> = vec![0; image_width * image_height * 3];
+        let mut image: Vec<f32> = vec![0.0; num_pixels * 3];
 
 
         let thread_count = num_cpus::get();
@@ -214,7 +213,7 @@ fn main() {
         let rows_per_band = image_height / thread_count;
 
         {
-            let bands: Vec<&mut [u8]> = image.chunks_mut(rows_per_band * image_width * 3).collect();
+            let bands: Vec<&mut [f32]> = image.chunks_mut(rows_per_band * image_width * 3).collect();
             crossbeam::scope(|scope| {
                 let camera_ref = &camera;
                 let shapes_ref = &shapes;
@@ -230,18 +229,23 @@ fn main() {
             });
         }
 
+        for p in 0..(num_pixels * 3) as usize {
+            accumulated_image[p] = (accumulated_image[p] * (total_samples / (total_samples + 1.0))) + (image[p] * (1.0 / (total_samples + 1.0)));
+        }
+        total_samples += 1.0;
+
 
         let mut texture = texture_creator.create_texture_streaming(
             PixelFormatEnum::RGB24, image_width as u32, image_height as u32).unwrap();
-        // Create a red-green gradient
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
             for y in 0..image_height as usize {
                 for x in 0..image_width as usize {
                     let offset = y*pitch + x*3;
                     let offset_in = y*(image_width * 3) as usize + x*3;
-                    buffer[offset] = image[offset_in];
-                    buffer[offset + 1] = image[offset_in + 1];
-                    buffer[offset + 2] = image[offset_in + 2];
+                    // Gamma correct & convert to 8bpp
+                    buffer[offset] = (accumulated_image[offset_in].min(1.0).sqrt() * 255.) as u8;
+                    buffer[offset + 1] = (accumulated_image[offset_in + 1].min(1.0).sqrt() * 255.) as u8;
+                    buffer[offset + 2] = (accumulated_image[offset_in + 2].min(1.0).sqrt() * 255.) as u8;
                 }
             }
         }).unwrap();
