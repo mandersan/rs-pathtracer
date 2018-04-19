@@ -31,6 +31,7 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use std::time::{Duration, Instant};
 // use std::fs::File;
 
 // fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
@@ -93,6 +94,7 @@ fn render(
     inv_view_projection_matrix: &Matrix4<f32>,
     camera: &raytracing::cameras::Camera,
     shapes: &[BoxedHitable],
+    ray_count: &mut u64,
 )
 {
     for y in 0..bounds.1 {
@@ -125,7 +127,7 @@ fn render(
                     direction: ray_dir
                 };
 
-                colour += raytracing::tracing::trace(shapes, &ray, 0);
+                colour += raytracing::tracing::trace(shapes, &ray, 0, ray_count);
             }
             colour /= num_samples as f32;
 
@@ -207,23 +209,30 @@ fn main() {
 
         let mut image: Vec<f32> = vec![0.0; num_pixels * 3];
 
+        
 
         let thread_count = num_cpus::get();
-        
         let rows_per_band = image_height / thread_count;
+
+        let mut ray_counts: Vec<u64> = vec![0; thread_count];
+        let start_time = Instant::now();
 
         {
             let bands: Vec<&mut [f32]> = image.chunks_mut(rows_per_band * image_width * 3).collect();
             crossbeam::scope(|scope| {
                 let camera_ref = &camera;
                 let shapes_ref = &shapes;
+                let ray_counts_ref = &mut ray_counts;
                 for (i, band) in bands.into_iter().enumerate() {
                     let top = rows_per_band * i;
                     let height = band.len() / (image_width * 3);
                     let top_left = (0, top);
                     let band_bounds = (image_width, height);
+                    let tmp = ray_counts.get_mut(i).unwrap();
                     scope.spawn(move || {
-                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, camera_ref, shapes_ref);
+                        let mut ray_count = 0;
+                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, camera_ref, shapes_ref, &mut ray_count);
+                        ray_counts_ref[i] = ray_count;
                     });
                 }
             });
@@ -253,5 +262,12 @@ fn main() {
         canvas.clear();
         canvas.copy(&texture, None, Some(Rect::new(0, 0, window_width, window_height))).unwrap();
         canvas.present();
+
+        let current_time = Instant::now();
+        let duration = current_time.duration_since(start_time);
+        let elapsed_time = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 * 1e-9);
+        let ray_count = ray_counts.iter().fold(0,|a, &b| a + b);
+        let rays_per_second = ray_count as f64 / elapsed_time;
+        println!("Rays/sec: {} (rays: {} elapsed_time: {})", rays_per_second, ray_count, elapsed_time);
     }
 }

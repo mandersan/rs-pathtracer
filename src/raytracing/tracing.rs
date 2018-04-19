@@ -15,7 +15,8 @@ pub fn hit<'a>(shapes: &'a[BoxedHitable], ray: &Ray, interval: &Interval) -> Opt
     hit_result
 }
 
-pub fn trace(shapes: &[BoxedHitable], ray: &Ray, depth: u32) -> Vector3<f32> {
+pub fn trace(shapes: &[BoxedHitable], ray: &Ray, depth: u32, ray_count: &mut u64) -> Vector3<f32> {
+    *ray_count += 1;
     let hit = hit(shapes, ray, &Interval { min: 0.001, max: f32::MAX });
     match hit {
         None => {
@@ -30,7 +31,7 @@ pub fn trace(shapes: &[BoxedHitable], ray: &Ray, depth: u32) -> Vector3<f32> {
                 let scatter_result = hit.material.scatter(ray, &hit);
                 match scatter_result {
                     None => emitted,//vec3(0., 0., 0.),
-                    Some(scatter_result) => emitted + scatter_result.attenuation.mul_element_wise(trace(shapes, &scatter_result.ray, depth + 1))
+                    Some(scatter_result) => emitted + scatter_result.attenuation.mul_element_wise(trace(shapes, &scatter_result.ray, depth + 1, ray_count))
                 }
             } else {
                 emitted//vec3(0., 0., 0.)
