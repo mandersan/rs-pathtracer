@@ -13,9 +13,11 @@
 extern crate cgmath;
 extern crate crossbeam;
 extern crate image;
+extern crate itertools;
 extern crate num_cpus;
 extern crate rand;
 extern crate sdl2;
+
 mod raytracing;
 
 use cgmath::*;
@@ -209,30 +211,24 @@ fn main() {
 
         let mut image: Vec<f32> = vec![0.0; num_pixels * 3];
 
-        
-
         let thread_count = num_cpus::get();
         let rows_per_band = image_height / thread_count;
 
-        let mut ray_counts: Vec<u64> = vec![0; thread_count];
         let start_time = Instant::now();
+        let mut ray_counts = vec![0; thread_count];
 
         {
             let bands: Vec<&mut [f32]> = image.chunks_mut(rows_per_band * image_width * 3).collect();
             crossbeam::scope(|scope| {
                 let camera_ref = &camera;
                 let shapes_ref = &shapes;
-                let ray_counts_ref = &mut ray_counts;
-                for (i, band) in bands.into_iter().enumerate() {
+                for (i, band, ray_count) in itertools::multizip((0..thread_count, bands.into_iter(), &mut ray_counts)) {
                     let top = rows_per_band * i;
                     let height = band.len() / (image_width * 3);
                     let top_left = (0, top);
                     let band_bounds = (image_width, height);
-                    let tmp = ray_counts.get_mut(i).unwrap();
                     scope.spawn(move || {
-                        let mut ray_count = 0;
-                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, camera_ref, shapes_ref, &mut ray_count);
-                        ray_counts_ref[i] = ray_count;
+                        render(band, top_left, band_bounds, num_samples, image_width, image_height, &view_matrix, &inv_view_projection_matrix, camera_ref, shapes_ref, ray_count);
                     });
                 }
             });
@@ -268,6 +264,7 @@ fn main() {
         let elapsed_time = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 * 1e-9);
         let ray_count = ray_counts.iter().fold(0,|a, &b| a + b);
         let rays_per_second = ray_count as f64 / elapsed_time;
-        println!("Rays/sec: {} (rays: {} elapsed_time: {})", rays_per_second, ray_count, elapsed_time);
+        let mrays_per_second = rays_per_second / 1000000.;
+        println!("Mrays/sec: {} (rays: {} elapsed_time: {})", mrays_per_second, ray_count, elapsed_time);
     }
 }
