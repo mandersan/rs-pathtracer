@@ -19,3 +19,10 @@ pub fn random_in_unit_disk() -> Vector3<f32> {
         }
     }
 }
+
+pub fn random_unit_vector() -> Vector3<f32> {
+    // :TODO: Not sure if this is correct
+    let p = (2. * random::<Vector3<f32>>()) - vec3(1., 1., 1.);
+    let tmp = 1.0 / p.mul_element_wise(p).sum().sqrt();
+    p * tmp
+}
