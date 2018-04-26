@@ -4,6 +4,8 @@ This a toy path tracer based the excellent Ray Tracing minibooks series by Peter
 
 It is written in Rust as an attempt to familiarise myself with this language.
 
+![Image](doc/example.png?raw=true)
+
 # Building
 
 `cargo build --release`
@@ -14,4 +16,4 @@ It is written in Rust as an attempt to familiarise myself with this language.
 
 # Notes
 
-* Math library going with is - https://github.com/brendanzab/cgmath.
+* Maths library going with is - https://github.com/brendanzab/cgmath.
