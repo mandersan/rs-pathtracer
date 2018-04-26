@@ -153,6 +153,7 @@ fn main() {
     let num_samples = 1;//20;
 
     let mut total_samples = 0.0;
+    let sample_cap = 2000;
 
     let num_pixels = image_width * image_height;
     let mut accumulated_image: Vec<f32> = vec![0.0; num_pixels * 3];
@@ -266,6 +267,10 @@ fn main() {
         let rays_per_second = ray_count as f64 / elapsed_time;
         let mrays_per_second = rays_per_second / 1000000.;
         println!("Mrays/sec: {} (rays: {} elapsed_time: {})", mrays_per_second, ray_count, elapsed_time);
+
+        if total_samples as u32 >= sample_cap {
+            break 'running;
+        }
     }
 
     println!("Total iterations: {}", total_samples);
