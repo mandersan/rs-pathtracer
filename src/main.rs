@@ -21,8 +21,8 @@ extern crate sdl2;
 mod raytracing;
 
 use cgmath::*;
-// use image::ColorType;
-// use image::png::PNGEncoder;
+use image::ColorType;
+use image::png::PNGEncoder;
 use rand::{random};
 use raytracing::cameras::{Camera};
 use raytracing::materials::{Dialectric, DiffuseLight, Lambertian, Metal};
@@ -34,16 +34,16 @@ use sdl2::rect::Rect;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::{Duration, Instant};
-// use std::fs::File;
+use std::fs::File;
 
-// fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
-//     -> Result<(), std::io::Error>
-// {
-//     let output = File::create(filename)?;
-//     let encoder = PNGEncoder::new(output);
-//     encoder.encode(pixels, dimensions.0, dimensions.1, ColorType::RGB(8))?;
-//     Ok(())
-// }
+fn write_png_rgb8(filename: &str, pixels: &[u8], dimensions: (u32, u32))
+    -> Result<(), std::io::Error>
+{
+    let output = File::create(filename)?;
+    let encoder = PNGEncoder::new(output);
+    encoder.encode(pixels, dimensions.0, dimensions.1, ColorType::RGB(8))?;
+    Ok(())
+}
 
 fn scene_test() -> HitableCollection {
     let mut shapes: HitableCollection = Vec::new();
@@ -267,4 +267,18 @@ fn main() {
         let mrays_per_second = rays_per_second / 1000000.;
         println!("Mrays/sec: {} (rays: {} elapsed_time: {})", mrays_per_second, ray_count, elapsed_time);
     }
+
+    println!("Total iterations: {}", total_samples);
+
+    // Write out final image
+    let mut converted_image: Vec<u8> = vec![0; num_pixels * 3];
+    for y in 0..image_height as usize {
+        for x in 0..image_width as usize {
+            let offset = y*(image_width * 3) as usize + x*3;
+            converted_image[offset] = (accumulated_image[offset].min(1.0).sqrt() * 255.) as u8;
+            converted_image[offset + 1] = (accumulated_image[offset + 1].min(1.0).sqrt() * 255.) as u8;
+            converted_image[offset + 2] = (accumulated_image[offset + 2].min(1.0).sqrt() * 255.) as u8;
+        }
+    }
+    write_png_rgb8("output.png", converted_image.as_slice(), (image_width as u32, image_height as u32)).expect("Unable to save PNG");
 }
